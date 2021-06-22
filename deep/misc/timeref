@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import argparse
+import itertools, functools
+import array
+import os
+import struct
+import time
+import torch
+from colorizers import eccv16
+import numpy as np
+from PIL import Image
+from skimage import color
+
+def run(args):
+    model = eccv16(pretrained=True).eval()
+
+    img_path = args.src
+    print(f'Processing {img_path}...')
+    img = np.asarray(Image.open(img_path))
+    if img.ndim == 2:
+        img = np.tile(img[:,:,None], 3)
+    img = img[:,:,:3]
+    img = np.asarray(Image.fromarray(img).resize((256, 256), resample=3))
+    img = color.rgb2lab(img)[:,:,0]
+
+    N = 100
+    iters = 100
+
+    img = np.tile(img, (N, 1, 1, 1))
+    print(img.shape)
+    tin = torch.Tensor(img)
+
+    model = model.cuda()
+    tin = tin.cuda()
+
+    tsum = 0
+    for i in range(iters):
+        st = time.time()
+        ref = model(tin)
+        et = time.time()
+        print(f'iter {i} time {et - st}')
+        tsum += et - st
+    print(f'avg {tsum / iters} throughput {(iters * N) / tsum}')
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('src', help='Input image.')
+    args = parser.parse_args()
+    run(args)
+
+if __name__ == '__main__':
+    main()

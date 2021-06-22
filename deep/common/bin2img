@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+
+import argparse
+import struct
+import os
+import numpy as np
+from PIL import Image
+from skimage import color
+
+def run(args):
+    with open(args.bin, 'rb') as f:
+        for img_path in args.img:
+            print(f'Processing {img_path}...')
+            img = np.asarray(Image.open(img_path))
+            if img.ndim == 2:
+                img = np.tile(img[:,:,None], 3)
+            img = img[:,:,:3]
+            img = color.rgb2lab(img)
+            ch_a = np.asarray(struct.unpack(f'{256 * 256}f', f.read(256 * 256 * 4))).reshape(256, 256)
+            ch_a = np.asarray(Image.fromarray(ch_a).resize((img.shape[1], img.shape[0]), resample = 3))
+            img[:,:,1] = ch_a
+            ch_b = np.asarray(struct.unpack(f'{256 * 256}f', f.read(256 * 256 * 4))).reshape(256, 256)
+            ch_b = np.asarray(Image.fromarray(ch_b).resize((img.shape[1], img.shape[0]), resample = 3))
+            img[:,:,2] = ch_b
+            img = color.lab2rgb(img) * 255
+            img = img.clip(0, 255).astype('uint8')
+            base, ext = os.path.splitext(img_path)
+            Image.fromarray(img).save(f'{base}_colorized{ext}')
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('img', nargs='+', help='Original images. (e.g., imgs/*)')
+    parser.add_argument('bin', help='Input binary name. (e.g., output.bin)')
+    args = parser.parse_args()
+    run(args)
+
+if __name__ == '__main__':
+    main()
